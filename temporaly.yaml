@@ -1,0 +1,304 @@
+ad@ubuntu:~$ ll
+total 136
+drwxr-x--- 11 ad   ad    4096 Nov 30 14:11 ./
+drwxr-xr-x  3 root root  4096 May  7  2025 ../
+-rw-------  1 ad   ad   40633 Nov 30 02:12 .bash_history
+-rw-r--r--  1 ad   ad     220 Mar 31  2024 .bash_logout
+-rw-r--r--  1 ad   ad    3771 Mar 31  2024 .bashrc
+drwx------  3 ad   ad    4096 Nov 27 12:47 .cache/
+drwx------  4 ad   ad    4096 Nov 29 04:21 .config/
+drwxrwxr-x  3 ad   ad    4096 Nov 30 14:15 doankv/
+-rw-rw-r--  1 ad   ad    6460 Nov 30 02:10 docker-compose.yml
+drwxrwxr-x  3 ad   ad    4096 Nov 27 12:47 .dotnet/
+-rw-rw-r--  1 ad   ad     607 Nov 29 09:26 .env
+drwxrwxr-x  2 ad   ad    4096 Nov 29 10:21 hive-config/
+-rw-------  1 ad   ad      20 Nov 27 15:11 .lesshst
+drwxrwxr-x  3 ad   ad    4096 Nov 26 06:19 .local/
+drwxrwxr-x  3 ad   ad    4096 Nov 29 07:44 nifi-config/
+-rw-rw-r--  1 ad   ad      25 May  7  2025 passwd
+-rw-r--r--  1 ad   ad     807 Mar 31  2024 .profile
+drwx------  2 ad   ad    4096 Nov 30 14:15 .ssh/
+-rw-r--r--  1 ad   ad       0 May  7  2025 .sudo_as_admin_successful
+-rw-------  1 ad   ad    8490 Nov 29 03:33 .viminfo
+drwxr-x---  5 ad   ad    4096 Nov 30 14:16 .vscode-server/
+-rw-rw-r--  1 ad   ad     221 Nov 27 13:46 .wget-hsts
+ad@ubuntu:~$ docker-compose down
+Command 'docker-compose' not found, but can be installed with:
+sudo snap install docker          # version 28.4.0, or
+sudo apt  install docker-compose  # version 1.29.2-6
+See 'snap info docker' for additional versions.
+ad@ubuntu:~$ docker compose down
+[+] Running 12/12
+ ✔ Container spark-worker2   Removed                                                                                                                                                                10.7s
+ ✔ Container datanode2       Removed                                                                                                                                                                10.5s
+ ✔ Container datanode1       Removed                                                                                                                                                                10.7s
+ ✔ Container spark-worker1   Removed                                                                                                                                                                10.6s
+ ✔ Container hive-server     Removed                                                                                                                                                                 1.7s
+ ✔ Container nifi            Removed                                                                                                                                                                 3.0s
+ ✔ Container hive-metastore  Removed                                                                                                                                                                 0.8s
+ ✔ Container hive-init       Removed                                                                                                                                                                 0.0s
+ ✔ Container mysql           Removed                                                                                                                                                                 1.4s
+ ✔ Container spark-master    Removed                                                                                                                                                                10.5s
+ ✔ Container namenode        Removed                                                                                                                                                                10.6s
+ ✔ Network ad_bigdata-net    Removed                                                                                                                                                                 0.2s
+ad@ubuntu:~$ cat docker-compose.yml
+networks:
+  bigdata-net:
+    driver: bridge
+
+volumes:
+  namenode:
+  datanode1:
+  datanode2:
+  mysql_data:
+  spark_master:
+  spark_worker1:
+  spark_worker2:
+  hive_metastore_db:
+  hive_server_logs:
+  nifi_conf:
+  nifi_state:
+  nifi_content:
+  nifi_provenance:
+  nifi_database:
+
+services:
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    env_file: .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: metastore
+      MYSQL_USER: hive
+      MYSQL_PASSWORD: hivepw
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u${MYSQL_USER}", "-p${MYSQL_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "${MYSQL_PORT}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - bigdata-net
+
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    env_file: .env
+    environment:
+      CLUSTER_NAME: ${CLUSTER_NAME}
+      CORE_CONF_fs_defaultFS: "hdfs://${HDFS_NAMENODE_HOST}:${HDFS_NAMENODE_RPC_PORT}"
+      HDFS_CONF_dfs_replication: ${HDFS_TOTAL_REPLICA}
+      HDFS_CONF_dfs_namenode_http_address: "0.0.0.0:9870"
+      HDFS_CONF_dfs_namenode_rpc_address: "0.0.0.0:8020"
+    ports:
+      - "${HDFS_NAMENODE_HTTP_PORT}:9870"
+      - "${HDFS_NAMENODE_RPC_PORT}:8020"
+    volumes:
+      - namenode:/hadoop/dfs/name
+    networks:
+      - bigdata-net
+
+  datanode1:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode1
+    depends_on:
+      - namenode
+    env_file: .env
+    environment:
+      CORE_CONF_fs_defaultFS: "hdfs://${HDFS_NAMENODE_HOST}:${HDFS_NAMENODE_RPC_PORT}"
+      HDFS_CONF_dfs_replication: ${HDFS_TOTAL_REPLICA}
+      HDFS_CONF_dfs_webhdfs_enabled: "true"
+      HDFS_CONF_dfs_datanode_http_address: "0.0.0.0:${DATANODE_1_HTTP_PORT}"
+    ports:
+      - "${DATANODE_1_HTTP_PORT}:${DATANODE_1_HTTP_PORT}"
+    volumes:
+      - datanode1:/hadoop/dfs/data
+    networks:
+      - bigdata-net
+
+  datanode2:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode2
+    depends_on:
+      - namenode
+    env_file: .env
+    environment:
+      CORE_CONF_fs_defaultFS: "hdfs://${HDFS_NAMENODE_HOST}:${HDFS_NAMENODE_RPC_PORT}"
+      HDFS_CONF_dfs_replication: ${HDFS_TOTAL_REPLICA}
+      HDFS_CONF_dfs_webhdfs_enabled: "true"
+      HDFS_CONF_dfs_datanode_http_address: "0.0.0.0:${DATANODE_2_HTTP_PORT}"
+    ports:
+      - "${DATANODE_2_HTTP_PORT}:${DATANODE_2_HTTP_PORT}"
+    volumes:
+      - datanode2:/hadoop/dfs/data
+    networks:
+      - bigdata-net
+
+  spark-master:
+    image: bde2020/spark-master:3.3.0-hadoop3.3
+    container_name: spark-master
+    env_file: .env
+    environment:
+      SPARK_MASTER_HOST: spark-master
+      SPARK_NO_DAEMONIZE: "true"
+      SPARK_PUBLIC_DNS: ${PUBLIC_DNS}
+      SPARK_MASTER_WEBUI_PORT: ${SPARK_MASTER_HTTP_PORT}
+    ports:
+      - "${SPARK_MASTER_HTTP_PORT}:${SPARK_MASTER_HTTP_PORT}"
+      - "7077:7077"
+    volumes:
+      - spark_master:/spark
+    networks:
+      - bigdata-net
+
+  spark-worker1:
+    image: bde2020/spark-worker:3.3.0-hadoop3.3
+    container_name: spark-worker1
+    env_file: .env
+    depends_on:
+      - spark-master
+    environment:
+      SPARK_MASTER: ${SPARK_MASTER_URL}
+      SPARK_PUBLIC_DNS: ${PUBLIC_DNS}
+      SPARK_WORKER_WEBUI_PORT: ${SPARK_WORKER_1_HTTP_PORT}
+      SPARK_WORKER_CORES: 4
+      SPARK_WORKER_MEMORY: 4g
+    ports:
+      - "${SPARK_WORKER_1_HTTP_PORT}:${SPARK_WORKER_1_HTTP_PORT}"
+    volumes:
+      - spark_worker1:/spark
+    networks:
+      - bigdata-net
+
+  spark-worker2:
+    image: bde2020/spark-worker:3.3.0-hadoop3.3
+    container_name: spark-worker2
+    env_file: .env
+    depends_on:
+      - spark-master
+    environment:
+      SPARK_MASTER: ${SPARK_MASTER_URL}
+      SPARK_PUBLIC_DNS: ${PUBLIC_DNS}
+      SPARK_WORKER_WEBUI_PORT: ${SPARK_WORKER_2_HTTP_PORT}
+      SPARK_WORKER_CORES: 4
+      SPARK_WORKER_MEMORY: 4g
+    ports:
+      - "${SPARK_WORKER_2_HTTP_PORT}:${SPARK_WORKER_2_HTTP_PORT}"
+    volumes:
+      - spark_worker2:/spark
+    networks:
+      - bigdata-net
+
+  hive-init:
+    image: apache/hive:${HIVE_IMAGE_TAG}
+    container_name: hive-init
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - ./hive-config/mysql-connector-j.jar:/opt/hive/lib/mysql-connector-j.jar
+      - ./hive-config/hive-site.xml:/opt/hive/conf/hive-site.xml
+    entrypoint: ["/bin/bash"]
+    command: ["-c", "/opt/hive/bin/schematool -dbType mysql -initSchema"]
+    networks:
+      - bigdata-net
+
+  hive-metastore:
+    image: apache/hive:${HIVE_IMAGE_TAG}
+    container_name: hive-metastore
+    depends_on:
+      hive-init:
+        condition: service_completed_successfully
+    env_file: .env
+    environment:
+      SERVICE_NAME: metastore
+    ports:
+      - "${HIVE_METASTORE_PORT}:9083"
+    volumes:
+      - hive_metastore_db:/opt/hive/metastore_db
+      - ./hive-config/mysql-connector-j.jar:/opt/hive/lib/mysql-connector-j.jar
+      - ./hive-config/hive-site.xml:/opt/hive/conf/hive-site.xml
+    networks:
+      - bigdata-net
+
+  hive-server:
+    image: apache/hive:${HIVE_IMAGE_TAG}
+    container_name: hive-server
+    depends_on:
+      hive-metastore:
+        condition: service_started
+    env_file: .env
+    environment:
+      SERVICE_NAME: hiveserver2
+    ports:
+      - "${HIVE_SERVER_PORT}:10000"
+    volumes:
+      - hive_server_logs:/opt/hive/logs
+      - ./hive-config/mysql-connector-j.jar:/opt/hive/lib/mysql-connector-j.jar
+      - ./hive-config/hive-site.xml:/opt/hive/conf/hive-site.xml
+    networks:
+      - bigdata-net
+
+  nifi:
+    image: apache/nifi:${NIFI_IMAGE_TAG}
+    container_name: nifi
+    env_file: .env
+    environment:
+      SINGLE_USER_CREDENTIALS_USERNAME: nifi
+      SINGLE_USER_CREDENTIALS_PASSWORD: nifipassword
+      NIFI_WEB_HTTP_PORT: ''
+      NIFI_WEB_HTTP_HOST: ''
+      NIFI_WEB_HTTPS_PORT: 8443
+      NIFI_WEB_HTTPS_HOST: 0.0.0.0
+      NIFI_SECURITY_ALLOW_INSECURE_HTTP: 'false'
+      NIFI_KEYSTORE: ''
+      NIFI_TRUSTSTORE: ''
+      NIFI_KEYSTORE_TYPE: ''
+      NIFI_TRUSTSTORE_TYPE: ''
+    ports:
+      - "${NIFI_WEB_PORT}:8443"
+    volumes:
+      - nifi_conf:/opt/nifi/nifi-current/conf
+      - nifi_state:/opt/nifi/nifi-current/state
+      - nifi_content:/opt/nifi/nifi-current/content_repository
+      - nifi_provenance:/opt/nifi/nifi-current/provenance_repository
+      - nifi_database:/opt/nifi/nifi-current/database_repository
+    networks:
+      - bigdata-net
+ad@ubuntu:~$ cat .env
+PUBLIC_DNS=113.161.88.63
+HDFS_NAMENODE_HOST=namenode
+HDFS_NAMENODE_RPC_PORT=8020
+HDFS_NAMENODE_HTTP_PORT=50070
+HDFS_TOTAL_REPLICA=2
+
+DATANODE_1_HTTP_PORT=50071
+DATANODE_2_HTTP_PORT=50072
+
+SPARK_MASTER_URL=spark://spark-master:7077
+SPARK_MASTER_HTTP_PORT=8686
+SPARK_WORKER_1_HTTP_PORT=8687
+SPARK_WORKER_2_HTTP_PORT=8688
+
+MYSQL_HOST=mysql
+MYSQL_PORT=3306
+MYSQL_DATABASE=metastore
+MYSQL_USER=hive
+MYSQL_PASSWORD=hivepw
+MYSQL_ROOT_PASSWORD=root
+
+CLUSTER_NAME=hdcluster
+
+HIVE_SERVER_PORT=10000
+HIVE_SERVER_HTTP_PORT=10002
+HIVE_METASTORE_PORT=9083
+HIVE_IMAGE_TAG=4.2.0
+
+NIFI_WEB_PORT=9000
+NIFI_IMAGE_TAG=2.6.0
+ad@ubuntu:~$

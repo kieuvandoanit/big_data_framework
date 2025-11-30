@@ -91,7 +91,7 @@ services:
     image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
     container_name: namenode
     hostname: namenode
-    platform: linux/amd64
+    # platform: linux/amd64
     env_file: .env
     environment:
       CLUSTER_NAME: ${CLUSTER_NAME}
@@ -102,7 +102,7 @@ services:
       HDFS_CONF_dfs_webhdfs_enabled: "true"
       HDFS_CONF_dfs_replication: ${HDFS_TOTAL_REPLICA}
     ports:
-      - "9870:9870"
+      - "50070:9870"
       - "8020:8020"
     volumes:
       - namenode:/hadoop/dfs/name
@@ -121,7 +121,7 @@ services:
     image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
     container_name: datanode1
     hostname: datanode1
-    platform: linux/amd64
+    # platform: linux/amd64
     env_file: .env
     depends_on:
       namenode:
@@ -133,7 +133,7 @@ services:
       HDFS_CONF_dfs_datanode_hostname: datanode1
       HDFS_CONF_dfs_datanode_http_address: 0.0.0.0:9864
     ports:
-      - "9864:9864"
+      - "50071:9864"
     volumes:
       - datanode1:/hadoop/dfs/data
     networks:
@@ -144,7 +144,7 @@ services:
     image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
     container_name: datanode2
     hostname: datanode2
-    platform: linux/amd64
+    # platform: linux/amd64
     env_file: .env
     depends_on:
       namenode:
@@ -156,7 +156,7 @@ services:
       HDFS_CONF_dfs_datanode_hostname: datanode2
       HDFS_CONF_dfs_datanode_http_address: 0.0.0.0:9864
     ports:
-      - "9865:9864"
+      - "50072:9864"
     volumes:
       - datanode2:/hadoop/dfs/data
     networks:
@@ -306,7 +306,8 @@ services:
       NIFI_WEB_HTTPS_HOST: 0.0.0.0
       NIFI_WEB_HTTPS_PORT: 8443
 
-      NIFI_WEB_PROXY_HOST: "localhost:9090"
+      NIFI_WEB_PROXY_HOST: "113.161.88.63:9000,localhost:8443"
+      NIFI_WEB_HTTPS_SNI_HOST_CHECK: 'false'
 
       # Single User Auth
       SINGLE_USER_CREDENTIALS_USERNAME: admin
@@ -319,7 +320,7 @@ services:
       # Disable clustering
       NIFI_CLUSTER_IS_NODE: 'false'
     ports:
-      - "9090:8443"    # map 9090 ngoài host vào 8443 trong container
+      - "9000:8443"    # map 9000 ngoài host vào 8443 trong container
     volumes:
       - nifi_conf:/opt/nifi/nifi-current/conf
       - nifi_content_repository:/opt/nifi/nifi-current/content_repository
@@ -351,6 +352,7 @@ services:
     environment:
       SPARK_MASTER_HOST: spark-master
       SPARK_NO_DAEMONIZE: "true"
+      SPARK_PUBLIC_DNS: ${PUBLIC_DNS}
     ports:
       - "${SPARK_MASTER_HTTP_PORT}:8080"
       - "7077:7077"
@@ -371,6 +373,7 @@ services:
       SPARK_WORKER_WEBUI_PORT: 8081
       SPARK_WORKER_CORES: 4
       SPARK_WORKER_MEMORY: 4g
+      SPARK_PUBLIC_DNS: ${PUBLIC_DNS}
     ports:
       - "${SPARK_WORKER_1_HTTP_PORT}:8081"
     networks:
@@ -390,6 +393,7 @@ services:
       SPARK_WORKER_WEBUI_PORT: 8081
       SPARK_WORKER_CORES: 4
       SPARK_WORKER_MEMORY: 4g
+      SPARK_PUBLIC_DNS: ${PUBLIC_DNS}
     ports:
       - "${SPARK_WORKER_2_HTTP_PORT}:8081"
     networks:
