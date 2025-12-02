@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+  <!-- HDFS default -->
+  <property>
+    <name>fs.defaultFS</name>
+    <value>hdfs://namenode:8020</value>
+  </property>
+
+  <!-- Warehouse (đã tạo bằng hdfs-init, chmod 777 rồi) -->
+  <property>
+    <name>hive.metastore.warehouse.dir</name>
+    <value>/user/hive/warehouse</value>
+  </property>
+
+  <!-- Scratch dir (đã tạo /tmp/hive, chmod 777) -->
+  <property>
+    <name>hive.exec.scratchdir</name>
+    <value>/tmp/hive</value>
+  </property>
+
+  <!-- Đừng bắt Hive strict check version schema metastore (cho đỡ nhạy cảm) -->
+  <property>
+    <name>hive.metastore.schema.verification</name>
+    <value>false</value>
+  </property>
+
+  <!-- QUAN TRỌNG: tắt impersonation (doAs) -->
+  <property>
+    <name>hive.server2.enable.doAs</name>
+    <value>false</value>
+  </property>
+
+<property>
+  <name>hive.execution.engine</name>
+  <value>mr</value>
+</property>
+
+<!-- Nếu muốn chạy MR trên YARN (tận dụng cluster) -->
+<property>
+  <name>mapreduce.framework.name</name>
+  <value>yarn</value>
+</property>
+
+</configuration>

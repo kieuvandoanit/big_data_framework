@@ -1,0 +1,46 @@
+<configuration>
+
+  <!-- Hostname của ResourceManager trong Docker network -->
+  <property>
+    <name>yarn.resourcemanager.hostname</name>
+    <value>resourcemanager</value>
+  </property>
+
+  <!-- Địa chỉ mà client (Hive, Spark, v.v.) sẽ connect tới -->
+  <property>
+    <name>yarn.resourcemanager.address</name>
+    <value>resourcemanager:8032</value>
+  </property>
+
+  <property>
+    <name>yarn.resourcemanager.scheduler.address</name>
+    <value>resourcemanager:8030</value>
+  </property>
+
+  <property>
+    <name>yarn.resourcemanager.resource-tracker.address</name>
+    <value>resourcemanager:8031</value>
+  </property>
+
+  <property>
+    <name>yarn.resourcemanager.admin.address</name>
+    <value>resourcemanager:8033</value>
+  </property>
+
+  <!-- Các bind-host là chỗ RM/NM lắng nghe trong container -->
+  <property>
+    <name>yarn.resourcemanager.bind-host</name>
+    <value>0.0.0.0</value>
+  </property>
+
+  <property>
+    <name>yarn.nodemanager.bind-host</name>
+    <value>0.0.0.0</value>
+  </property>
+
+  <property>
+    <name>yarn.timeline-service.bind-host</name>
+    <value>0.0.0.0</value>
+  </property>
+
+</configuration>

@@ -17,31 +17,10 @@ volumes:
   nifi_flowfile_repository:
   nifi_provenance_repository:
   hive_metastore:
+  hive_server_logs:
+  hive_metastore_derby:
 
 services:
-
-  # MySQL cho Hive Metastore
-  mysql:
-    image: mysql:8.0
-    container_name: mysql
-    env_file: .env
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-    ports:
-      - "${MYSQL_PORT}:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
-    networks:
-      - bigdata-net
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # MySQL Server cho lưu kết quả (Yêu cầu 7)
   mysql-result:
     image: mysql:8.0
@@ -101,6 +80,7 @@ services:
       HDFS_CONF_dfs_http_policy: HTTP_ONLY
       HDFS_CONF_dfs_webhdfs_enabled: "true"
       HDFS_CONF_dfs_replication: ${HDFS_TOTAL_REPLICA}
+      HDFS_CONF_dfs_permissions_enabled: "false"
     ports:
       - "50070:9870"
       - "8020:8020"
@@ -125,7 +105,7 @@ services:
     env_file: .env
     depends_on:
       namenode:
-        condition: service_healthy # Wait for namenode to be healthy
+        condition: service_healthy
     environment:
       CORE_CONF_fs_defaultFS: hdfs://namenode:8020
       HDFS_CONF_dfs_webhdfs_enabled: "true"
@@ -199,12 +179,19 @@ services:
         hdfs dfs -mkdir -p /data 2>&1 | tee /tmp/mkdir.log
         hdfs dfs -mkdir -p /spark-logs 2>&1 | tee -a /tmp/mkdir.log
         hdfs dfs -mkdir -p /user/hive/warehouse 2>&1 | tee -a /tmp/mkdir.log
+        hdfs dfs -mkdir -p /tmp        2>&1 | tee -a /tmp/mkdir.log
+        hdfs dfs -mkdir -p /tmp/hive   2>&1 | tee -a /tmp/mkdir.log
         
         echo "Setting permissions..."
-        hdfs dfs -chmod 777 /data 2>&1 | tee /tmp/chmod.log
+        # QUAN TRỌNG: cho phép ghi vào root /
+        hdfs dfs -chmod 777 /          2>&1 | tee /tmp/chmod.log
+
+        hdfs dfs -chmod 777 /data      2>&1 | tee -a /tmp/chmod.log
         hdfs dfs -chmod 777 /spark-logs 2>&1 | tee -a /tmp/chmod.log
         hdfs dfs -chmod 777 /user/hive/warehouse 2>&1 | tee -a /tmp/chmod.log
-        
+        hdfs dfs -chmod 777 /tmp       2>&1 | tee -a /tmp/chmod.log
+        hdfs dfs -chmod 777 /tmp/hive  2>&1 | tee -a /tmp/chmod.log
+
         echo "Verifying directories..."
         hdfs dfs -ls / 2>&1 | tee /tmp/verify.log
         
@@ -266,29 +253,29 @@ services:
 
   # Hive Server - BDE2020
   hive-server:
-    image: bde2020/hive:2.3.2-postgresql-metastore
+    image: apache/hive:4.2.0
     container_name: hive-server
     hostname: hive-server
-    platform: linux/amd64
-    env_file: .env
     depends_on:
-      mysql:
-        condition: service_healthy
       namenode:
         condition: service_started
       hdfs-init:
         condition: service_completed_successfully
+    env_file: .env
     environment:
-      HIVE_CORE_CONF_javax_jdo_option_ConnectionURL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?createDatabaseIfNotExist=true&useSSL=false
-      HIVE_CORE_CONF_javax_jdo_option_ConnectionDriverName: com.mysql.cj.jdbc.Driver
-      HIVE_CORE_CONF_javax_jdo_option_ConnectionUserName: ${MYSQL_USER}
-      HIVE_CORE_CONF_javax_jdo_option_ConnectionPassword: ${MYSQL_PASSWORD}
-      CORE_CONF_fs_defaultFS: hdfs://namenode:8020
-      HIVE_SITE_CONF_hive_metastore_uris: thrift://hive-server:9083
+      SERVICE_NAME: hiveserver2
+      HIVE_SKIP_PATH_CHECK: "true"
     ports:
-      - "10000:10000"
-      - "10002:10002"
-      - "9083:9083"
+      - "${HIVE_SERVER_PORT:-10000}:10000"
+    volumes:
+      - hive_server_logs:/opt/hive/logs
+      - ./hive-config/hive-site.xml:/opt/hive/conf/hive-site.xml
+      - ./hadoop-conf/yarn-site.xml:/opt/hadoop/etc/hadoop/yarn-site.xml
+      - ./hadoop-conf/yarn-site.xml:/etc/hadoop/yarn-site.xml
+      - ./hadoop-conf/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
+      - ./hadoop-conf/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
+      - ./hadoop-conf/mapred-site.xml:/opt/hadoop/etc/hadoop/mapred-site.xml
+
     networks:
       - bigdata-net
 
@@ -301,7 +288,6 @@ services:
       namenode:
         condition: service_healthy
     environment:
-      # CHỈ DÙNG HTTPS
       NIFI_WEB_HTTP_PORT: ""
       NIFI_WEB_HTTPS_HOST: 0.0.0.0
       NIFI_WEB_HTTPS_PORT: 8443
@@ -320,7 +306,7 @@ services:
       # Disable clustering
       NIFI_CLUSTER_IS_NODE: 'false'
     ports:
-      - "9000:8443"    # map 9000 ngoài host vào 8443 trong container
+      - "9000:8443"
     volumes:
       - nifi_conf:/opt/nifi/nifi-current/conf
       - nifi_content_repository:/opt/nifi/nifi-current/content_repository
@@ -356,6 +342,8 @@ services:
     ports:
       - "${SPARK_MASTER_HTTP_PORT}:8080"
       - "7077:7077"
+    volumes:
+      - ./spark-apps:/home/hduser/spark-apps
     networks:
       - bigdata-net
 
@@ -425,19 +413,18 @@ services:
         /spark/bin/spark-class org.apache.spark.deploy.history.HistoryServer
 
   data-simulator:
-      image: python:3.9-slim
-      container_name: data-simulator
-      working_dir: /app
-      volumes:
-        # Mount Python scripts
-        - ./data_simulator.py:/app/data_simulator.py
-        - ./generate_sample_data.py:/app/generate_sample_data.py
-        
-        # Mount data directories (read-write)
-        - ./data:/home/hduser/data
-        - ./realtime-data:/home/hduser/realtime-data
-      networks:
-        - bigdata-net
-      # Keep container running để có thể exec vào chạy scripts
-      command: tail -f /dev/null
-      restart: unless-stopped
+    image: python:3.9-slim
+    container_name: data-simulator
+    working_dir: /app
+    volumes:
+      # Mount Python scripts
+      - ./data_simulator.py:/app/data_simulator.py
+      - ./generate_sample_data.py:/app/generate_sample_data.py
+      
+      # Mount data directories (read-write)
+      - ./data:/home/hduser/data
+      - ./realtime-data:/home/hduser/realtime-data
+    networks:
+      - bigdata-net
+    command: tail -f /dev/null
+    restart: unless-stopped
