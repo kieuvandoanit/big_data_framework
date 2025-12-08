@@ -275,7 +275,6 @@ services:
       - ./hadoop-conf/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
       - ./hadoop-conf/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
       - ./hadoop-conf/mapred-site.xml:/opt/hadoop/etc/hadoop/mapred-site.xml
-
     networks:
       - bigdata-net
 
@@ -333,7 +332,7 @@ services:
     image: bde2020/spark-master:3.3.0-hadoop3.3
     container_name: spark-master
     hostname: spark-master
-    platform: linux/amd64
+    # platform: linux/amd64
     env_file: .env
     environment:
       SPARK_MASTER_HOST: spark-master
@@ -352,7 +351,7 @@ services:
     image: bde2020/spark-worker:3.3.0-hadoop3.3
     container_name: spark-worker1
     hostname: spark-worker1
-    platform: linux/amd64
+    # platform: linux/amd64
     env_file: .env
     depends_on:
       - spark-master
@@ -372,7 +371,7 @@ services:
     image: bde2020/spark-worker:3.3.0-hadoop3.3
     container_name: spark-worker2
     hostname: spark-worker2
-    platform: linux/amd64
+    # platform: linux/amd64
     env_file: .env
     depends_on:
       - spark-master
@@ -388,29 +387,29 @@ services:
       - bigdata-net
 
   # Spark History Server - BDE2020
-  spark-history-server:
-    image: bde2020/spark-history-server:3.3.0-hadoop3.3
-    container_name: spark-history-server
-    hostname: spark-history-server
-    platform: linux/amd64
-    env_file: .env
-    depends_on:
-      - namenode
-    environment:
-      SPARK_HISTORY_OPTS: "-Dspark.history.fs.logDirectory=hdfs://namenode:8020/spark-logs"
-    ports:
-      - "18080:18080"
-    networks:
-      - bigdata-net
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        echo "Waiting for HDFS..."
-        sleep 20
-        echo "Verifying /spark-logs directory..."
-        hdfs dfs -test -d /spark-logs || hdfs dfs -mkdir -p /spark-logs
-        echo "Starting Spark History Server..."
-        /spark/bin/spark-class org.apache.spark.deploy.history.HistoryServer
+  # spark-history-server:
+  #   image: bde2020/spark-history-server:3.3.0-hadoop3.3
+  #   container_name: spark-history-server
+  #   hostname: spark-history-server
+  #   platform: linux/amd64
+  #   env_file: .env
+  #   depends_on:
+  #     - namenode
+  #   environment:
+  #     SPARK_HISTORY_OPTS: "-Dspark.history.fs.logDirectory=hdfs://namenode:8020/spark-logs"
+  #   ports:
+  #     - "18080:18080"
+  #   networks:
+  #     - bigdata-net
+  #   entrypoint: ["/bin/sh", "-c"]
+  #   command:
+  #     - |
+  #       echo "Waiting for HDFS..."
+  #       sleep 20
+  #       echo "Verifying /spark-logs directory..."
+  #       hdfs dfs -test -d /spark-logs || hdfs dfs -mkdir -p /spark-logs
+  #       echo "Starting Spark History Server..."
+  #       /spark/bin/spark-class org.apache.spark.deploy.history.HistoryServer
 
   data-simulator:
     image: python:3.9-slim
