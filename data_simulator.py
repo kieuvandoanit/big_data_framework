@@ -162,7 +162,7 @@ class DataSimulator:
                 logger.info(f"{'='*60}")
                 
                 self.copy_batch()
-                
+
                 logger.info(f"Waiting {self.interval_seconds}s until next batch...")
                 time.sleep(self.interval_seconds)
                 
